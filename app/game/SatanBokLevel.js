@@ -3,8 +3,7 @@ var Level = require('Level');
 /**
  * Test level
  *
- * @name MainLevel
- * @class MainLevel
+ * @class SatanBokLevel
  */
 module.exports = Level.extend({
 
@@ -21,13 +20,18 @@ module.exports = Level.extend({
 
             var items = [];
 
-            for (var i = 0; i < 9; i ++) {
+            for (var i = 0; i < 12; i ++) {
                 var item = self.add(require('game/entities/SatanBok'));
-                item.setupAtPosition(new Point((i % 3) * 150 + 100 , Math.floor(i / 3) * 150 ));
+                if (i > 0) {
+                    item.POINT_COUNT = Math.min(2 + i, 10);
+                    item.RADIUS /= 1.2;
+                }
+
+                item.setupAtPosition(new Point((i % 4) * 150 + 100 , Math.floor(i / 4) * 150 ));
                 items.push(item)
             }
 
-            items[6].mouseControls = true;
+            items[0].mouseControls = true;
 
         }, 0);
     },

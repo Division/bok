@@ -8,8 +8,10 @@ window.shouldStop = 0;
 
 module.exports = Class.extend([Events], {
 
-    FRICTION_RATIO: 1,
+    FRICTION_RATIO: 1.3,
     FRICTION_MIN: 0.1,
+    WIDTH: 700,
+    HEIGHT: 500,
 
     /**
      * Number of iterations for collisions
@@ -65,7 +67,7 @@ module.exports = Class.extend([Events], {
 
         this.convexes = [];
 
-        this.gravity = new Point(0, 50);
+        this.gravity = new Point(0, 100);
     },
 
     /**
@@ -200,17 +202,16 @@ module.exports = Class.extend([Events], {
 
         for (var i = 0; i < this.particles.length; i++) {
             var particle = this.particles[i];
-            if (particle.position.y > 500) {
-                //particle.setPosition(new Point(particle.position.x, 600));
-                particle.push(new Point(0, 500 - particle.position.y));
+            if (particle.position.y > this.HEIGHT) {
+                particle.position.y = this.HEIGHT;
             }
 
             if (particle.position.x < 0) {
                 particle.position.x = 0;
             }
 
-            if (particle.position.x > 500) {
-                particle.position.x = 500;
+            if (particle.position.x > this.WIDTH) {
+                particle.position.x = this.WIDTH;
             }
         }
 
@@ -331,23 +332,22 @@ module.exports = Class.extend([Events], {
 
         var tangentDirection = Point.subtract(collisionInfo.edge[1].position, collisionInfo.edge[0].position).normalize(),
             pointSpeed = collisionInfo.point.getSpeed(),
-            edgePoint1Speed = collisionInfo.edge[0].getSpeed(),
-            edgePoint2Speed = collisionInfo.edge[1].getSpeed();
+            edgeSpeed = collisionInfo.edge[0].getSpeed().add(collisionInfo.edge[1].getSpeed()).multiply(0.5);
 
         if (!collisionInfo.depth) {
             return;
         }
 
         var frictionRatio =  Math.max(Math.min(collisionInfo.depth / this.FRICTION_RATIO, 1), this.FRICTION_MIN), // Bigger ratio - more friction
-            frictionRatioEdge = frictionRatio / 2,
 
-            tangentPointSpeed = tangentDirection.dot(pointSpeed) * frictionRatio,
-            tangentEdgePoint1Speed = tangentDirection.dot(edgePoint1Speed) * frictionRatioEdge,
-            tangentEdgePoint2Speed = tangentDirection.dot(edgePoint2Speed) * frictionRatioEdge;
+            tangentPointSpeed = tangentDirection.dot(pointSpeed),
+            tangentEdgeSpeed = tangentDirection.dot(edgeSpeed),
+            speedDelta = tangentPointSpeed - tangentEdgeSpeed,
+            deltaToApply = speedDelta * frictionRatio / 2;
 
-        collisionInfo.point.applyForce(Point.multiply(tangentDirection, -tangentPointSpeed));
-        collisionInfo.edge[0].applyForce(Point.multiply(tangentDirection, -tangentEdgePoint1Speed));
-        collisionInfo.edge[1].applyForce(Point.multiply(tangentDirection, -tangentEdgePoint2Speed));
+        collisionInfo.point.applyForce(Point.multiply(tangentDirection, -deltaToApply * 1.5));
+        collisionInfo.edge[0].applyForce(Point.multiply(tangentDirection, deltaToApply / 1.25));
+        collisionInfo.edge[1].applyForce(Point.multiply(tangentDirection, deltaToApply / 1.25));
     },
 
     /**
@@ -421,8 +421,8 @@ module.exports = Class.extend([Events], {
                 }
             }
 
-            debug.drawLine(new Point(0, 500), new Point(500, 500), 6, "green");
-            debug.drawLine(new Point(500, 0), new Point(500, 500), 6, "green");
+            debug.drawLine(new Point(0, this.HEIGHT), new Point(this.WIDTH, this.HEIGHT), 6, "green");
+            debug.drawLine(new Point(this.WIDTH, 0), new Point(this.WIDTH, this.HEIGHT), 6, "green");
         }
     }
 

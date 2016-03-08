@@ -2,10 +2,7 @@ var GameObject = require('GameObject');
 var KeyCodes = require('KeyCodes');
 
 /**
- * Player represent player objects
- *
- * @name Player
- * @class Player
+ * @class SatanBok
  */
 module.exports = GameObject.extend({
 
@@ -86,8 +83,47 @@ module.exports = GameObject.extend({
                 targetDirection.multiply(3);
             }
 
-            this.particles[0].applyForce(targetDirection);
+            if (this.game.input.activePointer.leftButton.isDown) {
+                this.particles[0].applyForce(targetDirection);
+            }
+
+            var rotateForceLeft = new Point();
+            var rotateForceRight = new Point();
+            var rotatAmmount = 0.7;
+            if (this.game.input.keyboard.isDown('A'.charCodeAt(0))) {
+                rotateForceLeft.y = rotatAmmount;
+                rotateForceRight.y = -rotatAmmount;
+            }
+            if (this.game.input.keyboard.isDown('D'.charCodeAt(0))) {
+                rotateForceLeft.y = -rotatAmmount;
+                rotateForceRight.y = rotatAmmount;
+            }
+
+            var rotateParticles = this.getLeftRightParticle();
+            rotateParticles[0].applyForce(rotateForceLeft);
+            rotateParticles[1].applyForce(rotateForceRight);
         }
+    },
+
+    getLeftRightParticle: function() {
+        var leftIndex = 1;
+        var rightIndex = 1;
+        var minLeft = this.particles[1].position.x;
+        var maxRight = minLeft;
+
+        for (var i = 0; i < this.particles.length; i++) {
+            if (this.particles[i].position.x < minLeft) {
+                minLeft = this.particles[i].position.x;
+                leftIndex = i;
+            }
+
+            if (this.particles[i].position.x > maxRight) {
+                maxRight = this.particles[i].position.x;
+                rightIndex = i;
+            }
+        }
+
+        return [this.particles[leftIndex], this.particles[rightIndex]];
     },
 
     /**
