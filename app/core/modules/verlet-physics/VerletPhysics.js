@@ -21,7 +21,7 @@ module.exports = Class.extend([Events], {
     /**
      * Number of iterations for constraint resolving
      */
-    CONSTRAINT_ITERATIONS: 6,
+    CONSTRAINT_ITERATIONS: 2,
 
     /**
      * Reference to the game
@@ -74,6 +74,7 @@ module.exports = Class.extend([Events], {
      * Main update cycle
      */
     update: function() {
+
         var dt = 1 / 30;
 
         if(this.game.input.keyboard.isDown(32)) {
@@ -92,9 +93,18 @@ module.exports = Class.extend([Events], {
         }
 
         this.debugCollisionInfoList = [];
+        this.sortForSweepAndPrune();
         for (var i = 0; i < this.COLLISION_ITERATIONS; i++) {
-            this.collision();
+            this.checkCollisionSweepAndPrune();
+
+            if (i < this.COLLISION_ITERATIONS - 1) {
+                this.processConstraints();
+            }
+
+            this.keepParticlesInWorldBounds();
         }
+
+        this.updateConvexBounds();
     },
 
     /**
@@ -103,7 +113,6 @@ module.exports = Class.extend([Events], {
      * @returns {Constraint}
      */
     createConstraint: function(particle1, particle2, length, stiffness) {
-
         var constraint = new Constraint(particle1, particle2, length, stiffness);
         this.constraints.push(constraint);
         return constraint;
@@ -169,10 +178,14 @@ module.exports = Class.extend([Events], {
     /**
      * Satisfying distance constraints
      */
-    processConstraints: function() {
+    processConstraints: function(list) {
 
-        for (var i = 0; i < this.constraints.length; i++) {
-            var constraint = this.constraints[i];
+        if (!list) {
+            list = this.constraints;
+        }
+
+        for (var i = 0; i < list.length; i++) {
+            var constraint = list[i];
             var point1 = constraint.particle1.position;
             var point2 = constraint.particle2.position;
 
@@ -196,10 +209,9 @@ module.exports = Class.extend([Events], {
     },
 
     /**
-     * Moving particles to resolve collisions
+     * Projects particles to the world bounds
      */
-    collision: function() {
-
+    keepParticlesInWorldBounds: function() {
         for (var i = 0; i < this.particles.length; i++) {
             var particle = this.particles[i];
             if (particle.position.y > this.HEIGHT) {
@@ -214,25 +226,67 @@ module.exports = Class.extend([Events], {
                 particle.position.x = this.WIDTH;
             }
         }
+    },
 
-        if (!this.convexes.length) return;
-
+    updateConvexBounds: function() {
         for (i = 0; i < this.convexes.length; i++) {
-            this.convexes[i].updateCenter();
+            this.convexes[i].updateBounds();
+        }
+    },
+
+    /**
+     * Sorts objects by AABB.x coordinate to use in sweep and prune broad phase
+     */
+    sortForSweepAndPrune: function() {
+        this.convexes.sort(function(first, second) {
+            var delta = first.aabb.min.x - second.aabb.min.x;
+            if (Math.abs(delta) < 0.00001) {
+                return 0;
+            } else {
+                return delta;
+            }
+        });
+    },
+
+    /**
+     * Sweep and prune broad phase and collision check
+     */
+    checkCollisionSweepAndPrune: function() {
+
+        for (var i = 0; i < this.convexes.length; i++) {
+            for (var j = i + 1; j < this.convexes.length; j++) {
+                var convex1 = this.convexes[i],
+                    convex2 = this.convexes[j];
+
+                if (convex1.aabb.max.x < convex2.aabb.min.x) {
+                    break;
+                }
+                var collisionInfo = {};
+                this.checkAndHandleCollision(convex1, convex2, collisionInfo);
+            }
+        }
+    },
+
+    /**
+     * Performs collision response between two convexes.
+     * collisionInfo must be empty object
+     * AABB check is also done here
+     */
+    checkAndHandleCollision: function(convex1, convex2, collisionInfo) {
+        if (convex1.aabb.max.y < convex2.aabb.min.y ||
+            convex1.aabb.min.y > convex2.aabb.max.y ||
+            convex1.aabb.max.x < convex2.aabb.min.x ||
+            convex1.aabb.min.x > convex2.aabb.max.x) {
+
+            return;
         }
 
-        for (i = 0; i < this.convexes.length; i++) {
-            for (var j = i + 1; j < this.convexes.length; j++) {
-                var collisionInfo = {};
+        if (this.collideConvexes(convex1, convex2, collisionInfo)
+            && this.collideConvexes(convex2, convex1, collisionInfo, true)) {
 
-                if (this.collideConvexes(this.convexes[i], this.convexes[j], collisionInfo)
-                    && this.collideConvexes(this.convexes[j], this.convexes[i], collisionInfo, true)) {
-
-                    this.collisionResponse(collisionInfo);
-                    //window.shouldStop++;
-                    this.debugCollisionInfoList.push(collisionInfo);
-                }
-            }
+            this.collisionResponse(collisionInfo);
+            //window.shouldStop++;
+            this.debugCollisionInfoList.push(collisionInfo);
         }
     },
 
@@ -323,6 +377,9 @@ module.exports = Class.extend([Events], {
         collisionInfo.point.position.add(Point.multiply(collisionVector, -0.5 * 1.5));
 
         this.applyFriction(collisionInfo);
+
+        collisionInfo.convex1.updateBounds();
+        collisionInfo.convex2.updateBounds();
     },
 
     /**
@@ -371,6 +428,9 @@ module.exports = Class.extend([Events], {
         return [min, max];
     },
 
+    /**
+     * Overlap distance for two projections
+     */
     intervalDistance: function(projection1, projection2) {
         if (projection1[0] < projection2[0]) {
             return projection2[0] - projection1[1];
