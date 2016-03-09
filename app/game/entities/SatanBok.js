@@ -8,6 +8,7 @@ module.exports = GameObject.extend({
 
     POINT_COUNT: 8,
     RADIUS: 50,
+    MASS: 1,
 
     particles: null,
 
@@ -30,22 +31,13 @@ module.exports = GameObject.extend({
      */
     create: function(){
 
-        //this.setupAtPosition(new Point(200, 80));
-
-        //var particle1 = VerletPhysics.createParticle(new Point(100,100));
-        //var particle2 = VerletPhysics.createParticle(new Point(150,300));
-        //var particle3 = VerletPhysics.createParticle(new Point(20,150));
-        //
-        //VerletPhysics.createConstraint(particle1, particle2, 100, 1);
-        //VerletPhysics.createConstraint(particle2, particle3, 100, 1);
-        //VerletPhysics.createConstraint(particle1, particle3, 100, 1);
     },
 
     setupAtPosition: function(position) {
         this.particles = [];
 
         // First particle is center
-        this.particles.push(VerletPhysics.createParticle(position));
+        this.particles.push(VerletPhysics.createParticle(position, this.MASS));
 
         // Convex to
         var convex = VerletPhysics.createConvex();
@@ -54,7 +46,7 @@ module.exports = GameObject.extend({
         for (var i = 0; i < this.POINT_COUNT; i++) {
             var angle = Math.PI * 2 * i / this.POINT_COUNT,
                 point = new Point(Math.cos(angle) * this.RADIUS + position.x, Math.sin(angle) * this.RADIUS + position.y),
-                particle = VerletPhysics.createParticle(point);
+                particle = VerletPhysics.createParticle(point, this.MASS);
             this.particles.push(particle);
             convex.addParticle(particle);
         }

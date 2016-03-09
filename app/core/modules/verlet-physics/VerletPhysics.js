@@ -8,6 +8,9 @@ window.shouldStop = 0;
 
 module.exports = Class.extend([Events], {
 
+
+    SWEEP_AND_PRUNE_ENABLED: true,
+
     FRICTION_RATIO: 1.3,
     FRICTION_MIN: 0.1,
     WIDTH: 700,
@@ -93,7 +96,11 @@ module.exports = Class.extend([Events], {
         }
 
         this.debugCollisionInfoList = [];
-        this.sortForSweepAndPrune();
+
+        if (this.SWEEP_AND_PRUNE_ENABLED) {
+            this.sortForSweepAndPrune();
+        }
+
         for (var i = 0; i < this.COLLISION_ITERATIONS; i++) {
             this.checkCollisionSweepAndPrune();
 
@@ -122,9 +129,9 @@ module.exports = Class.extend([Events], {
      * Creates particle with specified position
      * @returns {Particle}
      */
-    createParticle: function(position) {
+    createParticle: function(position, mass) {
 
-        var particle = new Particle(position);
+        var particle = new Particle(position, mass);
         this.particles.push(particle);
 
         return particle;
@@ -189,22 +196,16 @@ module.exports = Class.extend([Events], {
             var point1 = constraint.particle1.position;
             var point2 = constraint.particle2.position;
 
-            var norm = Point.subtract(point2, point1);
-            norm.normalize();
-            norm.multiplyFloat(constraint.length * 0.5);
-            var center = Point.add(point1, point2);
-            center.multiplyFloat(0.5);
+            // delta = x2 - x1
 
-            var goal1 = Point.subtract(center, norm);
-            goal1.subtractPoint(constraint.particle1.position);
-            goal1.multiplyFloat(constraint.stiffness);
+            var delta = Point.subtract(point2, point1),
+                deltaLength = delta.getMagnitude(),
+                diff = (deltaLength - constraint.length) / (deltaLength * (constraint.particle1.invMass + constraint.particle2.invMass));
 
-            var goal2 = Point.add(center, norm);
-            goal2.subtractPoint(constraint.particle2.position);
-            goal2.multiplyFloat(constraint.stiffness);
+            delta.multiply(diff * constraint.stiffness);
 
-            constraint.particle1.position.addPoint(goal1);
-            constraint.particle2.position.addPoint(goal2);
+            point1.add(Point.multiply(delta, constraint.particle1.invMass));
+            point2.subtract(Point.multiply(delta, constraint.particle2.invMass));
         }
     },
 
@@ -228,6 +229,9 @@ module.exports = Class.extend([Events], {
         }
     },
 
+    /**
+     * Iterates through all convexes and calls updateBounds()
+     */
     updateConvexBounds: function() {
         for (i = 0; i < this.convexes.length; i++) {
             this.convexes[i].updateBounds();
@@ -258,7 +262,7 @@ module.exports = Class.extend([Events], {
                 var convex1 = this.convexes[i],
                     convex2 = this.convexes[j];
 
-                if (convex1.aabb.max.x < convex2.aabb.min.x) {
+                if (this.SWEEP_AND_PRUNE_ENABLED && convex1.aabb.max.x < convex2.aabb.min.x) {
                     break;
                 }
                 var collisionInfo = {};
@@ -368,13 +372,17 @@ module.exports = Class.extend([Events], {
 
         var lambda = 1 / (t * t + (1 - t)*(1 - t));
 
+        var invMassEdge = 1 / (edgePoint1.mass + edgePoint2.mass);
+
+        collisionVector.divide(point.invMass + invMassEdge);
+
         // Move edge
         // 1.25 stands to compensate increased (*1.5) shift on the single point to improve stability
-        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * 0.5 / 1.25));
-        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * 0.5 / 1.25));
+        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * invMassEdge));
+        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * invMassEdge));
 
         // Move collision point
-        collisionInfo.point.position.add(Point.multiply(collisionVector, -0.5 * 1.5));
+        collisionInfo.point.position.add(Point.multiply(collisionVector, -point.invMass));
 
         this.applyFriction(collisionInfo);
 

@@ -20,14 +20,22 @@ module.exports = Level.extend({
 
             var items = [];
 
-            for (var i = 0; i < 12; i ++) {
+            var improvedI = 0;
+
+            for (var i = 0; i < 20; i ++) {
                 var item = self.add(require('game/entities/SatanBok'));
+
+                improvedI = i % 6 + 1;
+
                 if (i > 0) {
-                    item.POINT_COUNT = Math.min(2 + i, 10);
+                    item.POINT_COUNT = Math.min(2 + improvedI, 10);
                     item.RADIUS /= 1.2;
                 }
 
-                item.setupAtPosition(new Point((i % 4) * 150 + 100 , Math.floor(i / 4) * 150 ));
+                if (i==0) {
+                    item.MASS = 5;
+                }
+                item.setupAtPosition(new Point((i % 5) * 120 + 100 , Math.floor(i / 5) * 150 ));
                 items.push(item)
             }
 
