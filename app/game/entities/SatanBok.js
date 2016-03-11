@@ -14,6 +14,8 @@ module.exports = GameObject.extend({
 
     mouseControls: false,
 
+    convex: null,
+
     /**
      * Preload is called first. Normally you'd use this to load your game assets (or those needed for the current State)
      * You shouldn't create any objects in this method that require assets that you're also loading in this method, as
@@ -33,6 +35,10 @@ module.exports = GameObject.extend({
 
     },
 
+    setStatic: function() {
+        this.convex.setStatic(true, 0);
+    },
+
     setupAtPosition: function(position) {
         this.particles = [];
 
@@ -42,9 +48,11 @@ module.exports = GameObject.extend({
         // Convex to
         var convex = VerletPhysics.createConvex();
 
+        convex.addHelperParticle(this.particles[0]);
+
         // Others are added along the circle
         for (var i = 0; i < this.POINT_COUNT; i++) {
-            var angle = Math.PI * 2 * i / this.POINT_COUNT,
+            var angle = Math.PI * 2 * i / this.POINT_COUNT + 0.1,
                 point = new Point(Math.cos(angle) * this.RADIUS + position.x, Math.sin(angle) * this.RADIUS + position.y),
                 particle = VerletPhysics.createParticle(point, this.MASS);
             this.particles.push(particle);
@@ -57,6 +65,10 @@ module.exports = GameObject.extend({
             var nextIndex = i < this.POINT_COUNT ? i + 1 : 1;
             VerletPhysics.createConstraint(this.particles[i], this.particles[nextIndex], 1);
         }
+
+        convex.updateBounds();
+
+        this.convex = convex;
 
     },
 

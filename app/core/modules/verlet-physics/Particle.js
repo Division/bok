@@ -27,6 +27,7 @@ Particle.prototype = {
             this.invMass = 1 / mass;
         } else {
             this.invMass = 0;
+            this.mass = 0;
         }
     },
 

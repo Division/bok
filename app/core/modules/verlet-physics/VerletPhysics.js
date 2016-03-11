@@ -90,10 +90,13 @@ module.exports = Class.extend([Events], {
 
         this.accumulateForces(); // e.g. gravity
         this.moveParticles(dt);
+        this.processStaticGeometry();
+
 
         for (i = 0; i < this.CONSTRAINT_ITERATIONS; i++) {
             this.processConstraints();
         }
+
 
         this.debugCollisionInfoList = [];
 
@@ -183,6 +186,17 @@ module.exports = Class.extend([Events], {
     },
 
     /**
+     * Moves static particles back to their positions
+     */
+    processStaticGeometry: function() {
+        for (var i = 0; i < this.convexes.length; i++) {
+            if (this.convexes[i].isStatic) {
+                this.convexes[i].fixStaticPosition();
+            }
+        }
+    },
+
+    /**
      * Satisfying distance constraints
      */
     processConstraints: function(list) {
@@ -202,10 +216,11 @@ module.exports = Class.extend([Events], {
                 deltaLength = delta.getMagnitude(),
                 diff = (deltaLength - constraint.length) / (deltaLength * (constraint.particle1.invMass + constraint.particle2.invMass));
 
-            delta.multiply(diff * constraint.stiffness);
-
-            point1.add(Point.multiply(delta, constraint.particle1.invMass));
-            point2.subtract(Point.multiply(delta, constraint.particle2.invMass));
+            if (Math.abs(diff) > 0) {
+                delta.multiply(diff * constraint.stiffness);
+                point1.add(Point.multiply(delta, constraint.particle1.invMass));
+                point2.subtract(Point.multiply(delta, constraint.particle2.invMass));
+            }
         }
     },
 
@@ -280,7 +295,8 @@ module.exports = Class.extend([Events], {
         if (convex1.aabb.max.y < convex2.aabb.min.y ||
             convex1.aabb.min.y > convex2.aabb.max.y ||
             convex1.aabb.max.x < convex2.aabb.min.x ||
-            convex1.aabb.min.x > convex2.aabb.max.x) {
+            convex1.aabb.min.x > convex2.aabb.max.x ||
+            (convex1.isStatic && convex2.isStatic )) {
 
             return;
         }
@@ -301,18 +317,20 @@ module.exports = Class.extend([Events], {
      */
     collideConvexes: function(convex1, convex2, collisionInfo, isSecond) {
 
-        if (collisionInfo["depth"] === undefined) {
-            collisionInfo["depth"] = 10000; // Large value
+        if (collisionInfo.depth === undefined) {
+            collisionInfo.depth = 1000000; // Large value
         }
 
         collisionInfo.convex1 = convex1;
         collisionInfo.convex2 = convex2;
 
-        var minDepth = collisionInfo["depth"],
+        var minDepth = collisionInfo.depth,
             collisionNormal = null,
             collisionEdge = null,
-            foundBestNormal = false;
+            foundBestNormal = false,
+            interval = null;
 
+        // Getting collision normal and depth
         for (var i = 0; i < convex1.particles.length; i++) {
             var particle1 = convex1.particles[i],
                 particle2 = convex1.particles[(i + 1) % convex1.particles.length],
@@ -322,35 +340,57 @@ module.exports = Class.extend([Events], {
 
             var projection1 = this.projectConvexToAxis(convex1, normal),
                 projection2 = this.projectConvexToAxis(convex2, normal);
+                interval = this.intervalDistance(projection1, projection2);
 
-            var distance = this.intervalDistance(projection1, projection2);
+            var distance = interval.distance,
+                centersDirection = Point.subtract(convex1.center, convex2.center),
+
+                // Projection must be positive (normal looks in the correct direction)
+                // if not - it's probably a parallel edge which must be ignored
+                normalResponseProjection = centersDirection.dot(normal);
 
             if (distance > 0) {
                 return false;
-            } else if (Math.abs(distance) < minDepth) {
+            } else if (normalResponseProjection > 0 && Math.abs(distance) < minDepth) {
                 minDepth = Math.abs(distance);
                 collisionNormal = normal;
-                collisionEdge = [particle1, particle2];
                 foundBestNormal = true;
+                collisionEdge = [particle1, particle2];
             }
         }
 
         if (foundBestNormal) {
-            var minDistance = 10000;
+
+            var minDistance = 1000000;
             for (i = 0; i < convex2.particles.length; i++) {
                 var pointToLineDistance = collisionNormal.dot(Point.subtract(convex2.particles[i].position, convex1.center));
                 if (Math.abs(pointToLineDistance) < minDistance) {
                     minDistance = Math.abs(pointToLineDistance);
-                    collisionInfo["point"] = convex2.particles[i];
+                    collisionInfo.point = convex2.particles[i];
                 }
             }
 
-            collisionInfo["axis"] = collisionNormal;
-            collisionInfo["edge"] = collisionEdge;
-            collisionInfo["depth"] = minDepth;
+            collisionInfo.axis = collisionNormal;
+            collisionInfo.edge = collisionEdge;
+            collisionInfo.depth = minDepth;
         }
 
         return true;
+    },
+
+    distToSegment: function(p, v1, v2) {
+        var v = new Point(v2.x,v2.y);
+        v.subtract(v1);
+        var w = new Point(p.x,p.y);
+        w.subtract(v1);
+        var c1 = w.dot(v);
+        var c2 = v.dot(v);
+        if (!c2) return 100000;
+        var b = c1/c2;
+        v.multiply(b);
+        var Pb = new Point(v1.x, v1.y);
+        Pb.add(v);
+        return Point.distance(p, Pb);
     },
 
     /**
@@ -372,14 +412,16 @@ module.exports = Class.extend([Events], {
 
         var lambda = 1 / (t * t + (1 - t)*(1 - t));
 
-        var invMassEdge = 1 / (edgePoint1.mass + edgePoint2.mass);
+        var invMassEdge = 0;
+        if (edgePoint1.mass * edgePoint2.mass > 0) {
+            invMassEdge = 1 / (edgePoint1.mass + edgePoint2.mass);
+        }
 
         collisionVector.divide(point.invMass + invMassEdge);
 
         // Move edge
-        // 1.25 stands to compensate increased (*1.5) shift on the single point to improve stability
-        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * invMassEdge));
-        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * invMassEdge));
+        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * edgePoint1.invMass));
+        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * edgePoint2.invMass));
 
         // Move collision point
         collisionInfo.point.position.add(Point.multiply(collisionVector, -point.invMass));
@@ -395,9 +437,11 @@ module.exports = Class.extend([Events], {
      */
     applyFriction: function(collisionInfo) {
 
-        var tangentDirection = Point.subtract(collisionInfo.edge[1].position, collisionInfo.edge[0].position).normalize(),
+        var edgePoint1 = collisionInfo.edge[0],
+            edgePoint2 = collisionInfo.edge[1],
+            tangentDirection = Point.subtract(edgePoint2.position, edgePoint1.position).normalize(),
             pointSpeed = collisionInfo.point.getSpeed(),
-            edgeSpeed = collisionInfo.edge[0].getSpeed().add(collisionInfo.edge[1].getSpeed()).multiply(0.5);
+            edgeSpeed = edgePoint1.getSpeed().add(edgePoint2.getSpeed()).multiply(0.5);
 
         if (!collisionInfo.depth) {
             return;
@@ -408,11 +452,18 @@ module.exports = Class.extend([Events], {
             tangentPointSpeed = tangentDirection.dot(pointSpeed),
             tangentEdgeSpeed = tangentDirection.dot(edgeSpeed),
             speedDelta = tangentPointSpeed - tangentEdgeSpeed,
-            deltaToApply = speedDelta * frictionRatio / 2;
+            deltaToApply = speedDelta * frictionRatio,
+            invMassEdge = 0;
 
-        collisionInfo.point.applyForce(Point.multiply(tangentDirection, -deltaToApply * 1.5));
-        collisionInfo.edge[0].applyForce(Point.multiply(tangentDirection, deltaToApply / 1.25));
-        collisionInfo.edge[1].applyForce(Point.multiply(tangentDirection, deltaToApply / 1.25));
+        if (edgePoint1.mass * edgePoint2.mass > 0) {
+            invMassEdge = 1 / (edgePoint1.mass + edgePoint2.mass);
+        }
+
+        deltaToApply /= (collisionInfo.point.invMass + invMassEdge);
+
+        collisionInfo.point.applyForce(Point.multiply(tangentDirection, -deltaToApply * collisionInfo.point.invMass));
+        edgePoint1.applyForce(Point.multiply(tangentDirection, deltaToApply * edgePoint1.invMass));
+        edgePoint2.applyForce(Point.multiply(tangentDirection, deltaToApply * edgePoint2.invMass));
     },
 
     /**
@@ -440,11 +491,17 @@ module.exports = Class.extend([Events], {
      * Overlap distance for two projections
      */
     intervalDistance: function(projection1, projection2) {
+        var result = {};
+
         if (projection1[0] < projection2[0]) {
-            return projection2[0] - projection1[1];
+            result.distance = projection2[0] - projection1[1];
+            result.center = (projection2[0] + projection1[1]) / 2;
         } else {
-            return projection1[0] - projection2[1];
+            result.distance = projection1[0] - projection2[1];
+            result.center = (projection1[0] + projection2[1]) / 2;
         }
+
+        return result;
     },
 
     //// Debug draw

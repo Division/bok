@@ -75,7 +75,6 @@ module.exports = Class.extend([Events], {
         // Initialize optional modules
         Phaser.PluginManager = require('./modules/core/PluginManager');
         Phaser.Keyboard = require('./modules/input/Keyboard');
-        Phaser.Physics.Arcade = require('./modules/physics/World');
 
         // Initialize debug module
         if(this.debug) {
@@ -117,11 +116,8 @@ module.exports = Class.extend([Events], {
     create: function(){
 
         //  Enable physics
-        this.game.physics.startSystem(Phaser.Physics.ARCADE);
-
         window.VerletPhysics = new VerletPhysics(this.game);
         this.game.plugins.add(window.VerletPhysics);
-
         this.game.trigger('create');
     }
 

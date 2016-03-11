@@ -21,6 +21,21 @@ module.exports = Class.extend({
      */
     center: null,
 
+    /**
+     * Static convexes don't can't be moved by collision response, gravity etc
+     */
+    isStatic: false,
+
+    /**
+     * Array of helper particles that don't form collision edges
+     */
+    helperParticles: null,
+
+    /**
+     * Array of Points to set corresponding particle positions
+     */
+    staticParticlePositions: null,
+
     initialize: function(particles) {
 
         this.aabb = {
@@ -29,6 +44,8 @@ module.exports = Class.extend({
         };
 
         this.center = new Point();
+        this.helperParticles = [];
+        this.staticParticlePositions = [];
 
         this.setParticles(particles);
     },
@@ -36,6 +53,11 @@ module.exports = Class.extend({
 
     addParticle: function(particle) {
         this.particles.push(particle);
+    },
+
+
+    addHelperParticle: function(particle) {
+        this.helperParticles.push(particle);
     },
 
 
@@ -67,15 +89,54 @@ module.exports = Class.extend({
     },
 
 
-    setParticles: function(particles) {
+    /**
+     * Marks convex as static and creates snapshot of positions which will be kept
+     */
+    setStatic: function(isStatic, mass) {
+        if (isStatic === undefined) {
+            isStatic = true;
+        }
 
+        if (mass === undefined) {
+            mass = 0;
+        }
+
+        this.isStatic = isStatic;
+
+        this.staticParticlePositions = [];
+        for (var i = 0; i < this.particles.length; i++) {
+            this.particles[i].setMass(mass);
+            if (isStatic) {
+                this.staticParticlePositions.push(this.particles[i].position.clone());
+            }
+        }
+
+        if (isStatic) {
+            for (i = 0; i < this.helperParticles.length; i++) {
+                this.particles[i].setMass(mass);
+                this.staticParticlePositions.push(this.helperParticles[i].position.clone());
+            }
+        }
+    },
+
+    fixStaticPosition: function() {
+        for (var i = 0; i < this.particles.length; i++) {
+            this.particles[i].position.copyFrom(this.staticParticlePositions[i]);
+        }
+
+        for (i = 0; i < this.helperParticles.length; i++) {
+            this.helperParticles[i].position.copyFrom(this.staticParticlePositions[i + this.particles.length]);
+        }
+
+    },
+
+    setParticles: function(particles) {
         this.particles = particles || [];
         this.updateBounds();
     },
 
 
     getEdgeCount: function() {
-
         return this.particles.length;
     },
 
@@ -83,7 +144,6 @@ module.exports = Class.extend({
      * Returns array of two particles for the edge
      */
     getEdgeForIndex: function(index) {
-
         return [this.particles[index], (this.particles.index + 1) % this.getEdgeCount()];
     }
 
