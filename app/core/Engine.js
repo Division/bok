@@ -1,124 +1,169 @@
-var Phaser = require('phaser');
 var Events = require('Events');
 var Class = require('Class');
 var _ = require('lodash');
-var VerletPhysics = require('./modules/verlet-physics/VerletPhysics');
+var PhysicsDebugDraw = require("core/render/PhysicsDebugDraw");
+var VerletPhysics = require("core/verlet-physics/VerletPhysics");
+var glMatrix = require("gl-matrix");
+var mat4 = glMatrix.mat4;
+var twgl = require("twgl");
+var Keyboard = require("core/input/Keyboard");
+var Mouse = require("core/input/Mouse");
+var Camera = require("core/render/Camera");
 
 /**
  * Main engine class
- *
- * @extend {Events}
- *
+ * Gameplay independent code goes here
  * @class Engine
- * @name Engine
  */
 module.exports = Class.extend([Events], {
 
+    UPDATE_FPS: 60,
+
     /**
-     * Default renderer, if debug ON will be switched to CANVAS
+     * If set to false render loop will be finished
      */
-    renderer: Phaser.AUTO,
+    renderEnabled: true,
 
     /**
-     * Enable engine debug
+     * OpenGL context
      */
-    debug: true,
+    gl: null,
 
     /**
-     * Enable performance monitor
+     * TWGL library reference
      */
-    debugPerformanceMonitor: true,
+    twgl: null,
 
     /**
-    * The width of your game in game pixels.
-    * If given as a string the value must be between 0 and 100 and will be used as the percentage width
-    * of the parent container, or the browser window if no parent is given
-    *
-    * @type {Number|String}
-    */
-    width: "100", // 100%
+     * Physics engine
+     */
+    physics: null,
 
     /**
-    * The height  of your game in game pixels.
-    * If given as a string the value must be between 0 and 100 and will be used as the percentage width
-    * of the parent container, or the browser window if no parent is given
-    *
-    * @type {Number|String}
-    */
-    height: "100", // 100%
+     * Rendering for the physics engine
+     */
+    physicsDebugDraw: null,
 
     /**
-    * This is where the magic happens. The Game object is the heart of your game, providing quick access to common
-    * functions and handling the boot process.
-    *
-    * @type {Phaser.Game}
-    */
-    game: null,
+     * Current time in milliseconds
+     */
+    time: 0,
 
     /**
-     * Init object
-     *
+     * Time when the engine created
+     */
+    startTime: 0,
+
+    /**
+     * Last time the update callback wall called
+     */
+    lastUpdateTime: 0,
+
+    /**
+     * @type {Camera}
+     */
+    camera: null,
+
+    renderCallback: null,
+    updateCallback: null,
+
+    /**
+     * Keyboard state
+     */
+    keyboard: null,
+
+    /**
+     * Mouse state
+     */
+    mouse: null,
+
+    /**
+     * @param el
+     * @param renderCallback
+     * @param updateCallback
      * @constructor
      */
-    initialize: function(){
-
-        // Make phaser accessible global, this is not good practice, but I don't give a fuck!
-        window.Phaser = Phaser;
-        window.Point = Phaser.Point;
+    initialize: function(el, renderCallback, updateCallback) {
+        this.twgl = twgl;
+        var element = document.getElementById(el);
+        this.gl = twgl.getWebGLContext(element);
+        this.renderCallback = renderCallback;
+        this.updateCallback = updateCallback;
+        this.startTime = Date.now();
+        this.physicsDebugDraw = new PhysicsDebugDraw(this.gl);
+        this.physics = new VerletPhysics();
+        this.physics.debug = this.physicsDebugDraw;
+        this.keyboard = new Keyboard(this);
+        this.keyboard.start();
+        this.mouse = new Mouse(element, this);
+        this.mouse.startListening();
+        this.camera = new Camera();
     },
 
     /**
-     * Start game level
+     * Initiates render loop
      */
-    createGame: function() {
+    start: function() {
+        this.renderEnabled = true;
+        var self = this;
 
-        // Initialize optional modules
-        Phaser.PluginManager = require('./modules/core/PluginManager');
-        Phaser.Keyboard = require('./modules/input/Keyboard');
-
-        // Initialize debug module
-        if(this.debug) {
-            Phaser.Utils.Debug = require('./modules/debug/Engine');
-            Phaser.BitmapData = require('./modules/gameobjects/BitmapData');
-            this.renderer = Phaser.CANVAS; // Debug not works for WebGL render
+        function processRender() {
+            self.render();
+            if (self.renderEnabled) {
+                requestAnimationFrame(processRender);
+            }
         }
 
-        // Create game object
-        this.game =  _.extend(new Phaser.Game(this.width, this.height, this.renderer, this.element, {
-            preload: this.preload.bind(this),
-            create:  this.create.bind(this)
-        }), Events);
-
-        this.game.isDebugEnabled = this.debug;
-
-        return this.game;
+        processRender();
     },
 
     /**
-     * Preload is called first. Normally you'd use this to load your game assets (or those needed for the current State)
-     * You shouldn't create any objects in this method that require assets that you're also loading in this method, as
-     * they won't yet be available.
+     * Suspends rendering loop
      */
-    preload: function(){
+    stop: function() {
+        this.renderEnabled = false;
+    },
 
-        if (this.debugPerformanceMonitor){
-            this.game.plugins.add(require('./modules/debug/Performance'));
+    /**
+     * @private
+     */
+    render: function() {
+        var gl = this.gl;
+        var currentTime = Date.now() / 1000 - this.startTime / 1000;
+        this.time = currentTime;
+
+        gl.clearColor(0.0,0.0,0,0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.disable(gl.CULL_FACE);
+        gl.disable(gl.DEPTH_TEST);
+
+        this.camera.setScreenSize(this.gl.canvas.width, this.gl.canvas.height);
+
+        // Update physycs each FPS times
+        if (this.updateCallback && currentTime - this.lastUpdateTime > 1 / this.UPDATE_FPS) {
+            this.lastUpdateTime = currentTime;
+
+            this.mouse.update();
+            this.physics.update();
+            this.physics.renderDebugInfo();
+
+            this.updateCallback();
         }
 
-        this.game.trigger('preload');
+        twgl.resizeCanvasToDisplaySize(gl.canvas);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        var projectionMatrix = mat4.create();
+        mat4.ortho(projectionMatrix, 0, gl.canvas.width, gl.canvas.height, 0, -1, 1);
+        var viewMatrix = this.camera.getMatrix();
+        var viewProjectionMatrix = mat4.create();
+        mat4.multiply(viewProjectionMatrix, projectionMatrix, viewMatrix);
 
-    },
 
-    /**
-     * Create is called once preload has completed, this includes the loading of any assets from the Loader.
-     * If you don't have a preload method then create is the first method called in your State.
-     */
-    create: function(){
+        if (this.renderCallback) {
+            this.renderCallback();
+        }
 
-        //  Enable physics
-        window.VerletPhysics = new VerletPhysics(this.game);
-        this.game.plugins.add(window.VerletPhysics);
-        this.game.trigger('create');
+        this.physicsDebugDraw.render(viewProjectionMatrix);
     }
 
 });

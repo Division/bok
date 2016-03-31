@@ -1,10 +1,12 @@
-var GameObject = require('GameObject');
-var KeyCodes = require('KeyCodes');
+var BaseEntity = require('game/base/BaseEntity');
+var KeyCodes = require('core/input/KeyCodes');
+var Point = require("core/verlet-physics/Point");
+var Rope = require("game/entities/Rope");
 
 /**
  * @class SatanBok
  */
-module.exports = GameObject.extend({
+module.exports = BaseEntity.extend({
 
     POINT_COUNT: 8,
     RADIUS: 50,
@@ -16,23 +18,24 @@ module.exports = GameObject.extend({
 
     convex: null,
 
-    /**
-     * Preload is called first. Normally you'd use this to load your game assets (or those needed for the current State)
-     * You shouldn't create any objects in this method that require assets that you're also loading in this method, as
-     * they won't yet be available.
-     */
-    preload: function(){
+    initialPosition: null,
 
-        var game = this.game;
-        game.load.image('ship', 'assets/general/ship.png');
+    rope: null,
+
+    initialize: function(position) {
+        this.initialPosition = new Point(position.x, position.y);
+        this.mouseControls = true;
     },
 
-    /**
-     * Create is called once preload has completed, this includes the loading of any assets from the Loader.
-     * If you don't have a preload method then create is the first method called in your State.
-     */
-    create: function(){
+    start: function() {
+        this.setupAtPosition(this.initialPosition);
+        this.engine.mouse.on("down", this.fire, this);
+    },
 
+    fire: function(position) {
+        var point = new Point(position[0], position[1]);
+        var direction = Point.subtract(point, this.particles[0].position, point).normalize();
+        this.rope.fire(direction);
     },
 
     setStatic: function() {
@@ -40,13 +43,14 @@ module.exports = GameObject.extend({
     },
 
     setupAtPosition: function(position) {
+
         this.particles = [];
 
         // First particle is center
-        this.particles.push(VerletPhysics.createParticle(position, this.MASS));
+        this.particles.push(this.engine.physics.createParticle(position, this.MASS));
 
         // Convex to
-        var convex = VerletPhysics.createConvex();
+        var convex = this.engine.physics.createConvex();
 
         convex.addHelperParticle(this.particles[0]);
 
@@ -54,22 +58,23 @@ module.exports = GameObject.extend({
         for (var i = 0; i < this.POINT_COUNT; i++) {
             var angle = Math.PI * 2 * i / this.POINT_COUNT + 0.1,
                 point = new Point(Math.cos(angle) * this.RADIUS + position.x, Math.sin(angle) * this.RADIUS + position.y),
-                particle = VerletPhysics.createParticle(point, this.MASS);
+                particle = this.engine.physics.createParticle(point, this.MASS);
             this.particles.push(particle);
             convex.addParticle(particle);
         }
 
         for (i = 1; i <= this.POINT_COUNT; i++) {
-            VerletPhysics.createConstraint(this.particles[i], this.particles[0], 1);
+            this.engine.physics.createConstraint(this.particles[i], this.particles[0], 0.8);
 
             var nextIndex = i < this.POINT_COUNT ? i + 1 : 1;
-            VerletPhysics.createConstraint(this.particles[i], this.particles[nextIndex], 1);
+            this.engine.physics.createConstraint(this.particles[i], this.particles[nextIndex], 0.8);
         }
 
         convex.updateBounds();
 
+        this.rope = new Rope(this.particles[0], convex);
+        this.game.addEntity(this.rope);
         this.convex = convex;
-
     },
 
     /**
@@ -79,26 +84,26 @@ module.exports = GameObject.extend({
     update: function() {
 
         if (this.particles && this.mouseControls) {
-            var targetPosition = new Point(this.game.input.x, this.game.input.y);
-                targetDirection = Point.subtract(targetPosition, this.particles[0].position).multiply(0.01);
-
-            if (targetDirection.getMagnitude() > 3) {
-                targetDirection.normalize();
-                targetDirection.multiply(3);
-            }
-
-            if (this.game.input.activePointer.leftButton.isDown) {
-                this.particles[0].applyForce(targetDirection);
-            }
+            //var targetPosition = new Point(this.engine.mouse.worldPosition[0], this.engine.mouse.worldPosition[1]);
+            //    targetDirection = Point.subtract(targetPosition, this.particles[0].position).multiply(0.01);
+            //
+            //if (targetDirection.getMagnitude() > 3) {
+            //    targetDirection.normalize();
+            //    targetDirection.multiply(3);
+            //}
+            //
+            //if (this.game.engine.mouse.isDown) {
+            //    this.particles[0].applyForce(targetDirection);
+            //}
 
             var rotateForceLeft = new Point();
             var rotateForceRight = new Point();
-            var rotatAmmount = 0.7;
-            if (this.game.input.keyboard.isDown('A'.charCodeAt(0))) {
+            var rotatAmmount = 1.3;
+            if (this.engine.keyboard.isDown('A'.charCodeAt(0))) {
                 rotateForceLeft.y = rotatAmmount;
                 rotateForceRight.y = -rotatAmmount;
             }
-            if (this.game.input.keyboard.isDown('D'.charCodeAt(0))) {
+            if (this.engine.keyboard.isDown('D'.charCodeAt(0))) {
                 rotateForceLeft.y = -rotatAmmount;
                 rotateForceRight.y = rotatAmmount;
             }
@@ -106,6 +111,8 @@ module.exports = GameObject.extend({
             var rotateParticles = this.getLeftRightParticle();
             rotateParticles[0].applyForce(rotateForceLeft);
             rotateParticles[1].applyForce(rotateForceRight);
+
+            this.engine.camera.setPosition(this.particles[0].position.x, this.particles[0].position.y);
         }
     },
 
@@ -134,14 +141,8 @@ module.exports = GameObject.extend({
      * Render is called right after the Game Renderer completes,
      * but before the State.render. It is only called if visible is set to true.
      */
-    render: function(){
+    render: function() {
 
-        if(this.game.isDebugEnabled){
-            //game.debug.spriteInfo(ship, 32, 32);
-            //game.debug.bodyInfo(ship, 400, 32);
-            //game.debug.body(ship);
-            //game.debug.cameraInfo(game.camera, 32, 120);
-        }
     }
 
 });

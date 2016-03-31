@@ -12,7 +12,8 @@
     "webpack": "^1.12.13",
     "raw-loader":"^0.5.1",
     "binary-loader": "^0.0.1",
-    "base64-js": "^1.1.1"
+    "base64-js": "^1.1.1",
+    "bluebird": "^3.3.4"
   },
   "engines": {
     "node": ">=0.10.0"
