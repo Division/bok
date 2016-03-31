@@ -1,3 +1,5 @@
+var Game = require("../game/Game");
+
 /**
  * Here we load the game levels
  *
@@ -10,22 +12,16 @@ module.exports = Backbone.View.extend({
      */
     level: null,
 
+    game: null,
+
     /**
      * Init game and start render level
      *
      * @param {Object} attrs { level: 'Level' }
      */
     initialize: function (attrs) {
-        this.render(attrs.level);
-    },
 
-    /**
-     * Load engine and game level
-     *
-     * @param {Level} Level
-     */
-    render: function (Level) {
-        this.level = new Level(this.el);
+        this.game = new Game(attrs);
     }
 
 });

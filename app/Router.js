@@ -10,9 +10,11 @@ module.exports = Backbone.Router.extend({
     /**
      * Load level
      */
-    loadTestLevel: function(){ new GameView({
-        el: '#canvas',
-        level: require('game/SatanBokLevel')
-    }); }
+    loadTestLevel: function() {
+        new GameView({
+            el: 'canvas'
+            //level: require('game/SatanBokLevel')
+        });
+    }
 
 });
