@@ -3,8 +3,6 @@
 Javascript implementation of the position based physics, WebGL render and fun gameplay.
 
 TODO:
-* Gameplay: add rope
-* Gameplay: add original level loading
 * Gameplay: collect items and switch levels (original game functional)
 * Physics: add collisions vs lines (for rope bridges)
 * Render: initial GBuffer filling with color data
@@ -13,6 +11,8 @@ TODO:
 * Render: shadow maps
 
 DONE:
+* Gameplay: add rope
+* Gameplay: add original level loading
 * Physics: position based physics
 * Physics: convex collision response
 * Physics: friction
