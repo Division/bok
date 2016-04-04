@@ -3,6 +3,10 @@
  */
 var Class = require("Class");
 var Events = require("Events");
+
+/**
+ * @class Mouse
+ */
 module.exports = Class.extend([Events],{
 
     canvasElement: null,
@@ -33,13 +37,13 @@ module.exports = Class.extend([Events],{
         };
 
         this.canvasElement.onmousedown = function(e) {
-            self.trigger("down", self.positionFromEvent(e));
+            self.trigger("down", self.positionFromEvent(e), e.button);
             self.isDown = true;
             self.lastEvent = e;
         };
 
         this.canvasElement.onmouseup = function(e) {
-            self.trigger("up", {x: e.clientX, y: e.clientY});
+            self.trigger("up", {x: e.clientX, y: e.clientY}, e.button);
             self.isDown = false;
             self.lastEvent = e;
         };

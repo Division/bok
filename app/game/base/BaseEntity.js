@@ -2,15 +2,17 @@
  * Created by Nikita Sidorenko on 3/13/16.
  */
 var Class = require("Class");
+var Events = require("Events");
 
 /**
  * @class BaseEntity
  */
-module.exports = Class.extend({
+module.exports = Class.extend([Events], {
 
     engine: null,
     game: null,
     physics: null,
+    mustBeKilled: false,
 
     setup: function(game, engine) {
         this.game = game;
@@ -19,8 +21,7 @@ module.exports = Class.extend({
     },
 
     destroy: function() {
-        this.game = null;
-        this.engine = null;
+        this.mustBeKilled = true;
     },
 
     start: function() {

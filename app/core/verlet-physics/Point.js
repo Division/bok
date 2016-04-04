@@ -505,6 +505,16 @@ Point.subtract = function (a, b, out) {
 
 };
 
+
+Point.ord = function(point, linePoint1, linePoint2) {
+    var ax = linePoint2.x - linePoint1.x;
+    var ay = linePoint2.y - linePoint1.y;
+    var bx = point.x - linePoint1.x;
+    var by = point.y - linePoint1.y;
+    var sa = ax * by - bx * ay;
+    return sa > 0 ? 1 : -1;
+};
+
 /**
  * Multiplies the coordinates of two points to create a new point.
  *

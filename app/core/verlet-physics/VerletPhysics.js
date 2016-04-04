@@ -6,7 +6,6 @@ var Convex = require('./Convex');
 var Collision = require('./Collision');
 var Point = require('core/verlet-physics/Point');
 
-window.shouldStop = 0;
 /**
  * @class VerletPhysics
  */
@@ -68,12 +67,14 @@ module.exports = Class.extend([Events], {
     collision: null,
 
 
+    debugStopOnCollision: false,
+
+    isStopped: false,
+
     /**
      * Constructor
      */
     initialize: function(game) {
-
-        this.game = game;
 
         this.particles = [];
 
@@ -93,11 +94,7 @@ module.exports = Class.extend([Events], {
 
         var dt = 1 / 30;
 
-        //if(this.game.input.keyboard.isDown(32)) {
-        //    window.shouldStop = 0;
-        //}
-
-        if (window.shouldStop > 0) {
+        if (this.isStopped) {
             return;
         }
 
@@ -120,7 +117,7 @@ module.exports = Class.extend([Events], {
         for (var i = 0; i < this.COLLISION_ITERATIONS; i++) {
             this.checkCollisionSweepAndPrune();
 
-            if (i < this.COLLISION_ITERATIONS - 1) {
+            if (!this.debugStopOnCollision) {
                 this.processConstraints();
             }
 
@@ -128,6 +125,11 @@ module.exports = Class.extend([Events], {
         }
 
         this.updateConvexBounds();
+    },
+
+
+    debugResume: function() {
+        this.isStopped = false;
     },
 
     /**
@@ -336,7 +338,11 @@ module.exports = Class.extend([Events], {
             && this.collideConvexes(convex2, convex1, collisionInfo, true)) {
 
             this.collisionResponse(collisionInfo);
-            //window.shouldStop++;
+
+            if (this.debugStopOnCollision) {
+                this.isStopped = true;
+            }
+
             this.debugCollisionInfoList.push(collisionInfo);
         }
     },
@@ -392,13 +398,23 @@ module.exports = Class.extend([Events], {
 
         if (foundBestNormal) {
 
-            var minDistance = 1000000;
+            var maxDistance = 0,
+                firstPointOnCorrectSide = null;
+
             for (i = 0; i < convex2.particles.length; i++) {
-                var pointToLineDistance = collisionNormal.dot(Point.subtract(convex2.particles[i].position, convex1.center));
-                if (Math.abs(pointToLineDistance) < minDistance) {
-                    minDistance = Math.abs(pointToLineDistance);
-                    collisionInfo.point = convex2.particles[i];
+                if (Point.ord(convex2.particles[i].position, collisionEdge[0].position, collisionEdge[1].position) > 0) {
+                    var pointToLineDistance = this.distToSegment(convex2.particles[i].position, collisionEdge[0].position, collisionEdge[1].position);
+                    if (Math.abs(pointToLineDistance) > maxDistance) {
+                        maxDistance  = Math.abs(pointToLineDistance);
+                        collisionInfo.point = convex2.particles[i];
+                    }
+
+                    firstPointOnCorrectSide = convex2.particles[i];
                 }
+            }
+
+            if (!collisionInfo.point) {
+                collisionInfo.point = firstPointOnCorrectSide || convex2.particles[0];
             }
 
             collisionInfo.axis = collisionNormal;
@@ -451,8 +467,8 @@ module.exports = Class.extend([Events], {
         collisionVector.divide(point.invMass + invMassEdge);
 
         // Move edge
-        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * edgePoint1.invMass));
-        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * edgePoint2.invMass));
+        edgePoint1.position.add(Point.multiply(collisionVector, (1 - t) * lambda * invMassEdge));
+        edgePoint2.position.add(Point.multiply(collisionVector, t * lambda * invMassEdge));
 
         // Move collision point
         collisionInfo.point.position.add(Point.multiply(collisionVector, -point.invMass));
@@ -559,7 +575,11 @@ module.exports = Class.extend([Events], {
                 for (var j = 0; j < convex.particles.length; j++) {
                     var particle1 = convex.particles[j];
                     var particle2 = convex.particles[(j+1) % convex.particles.length];
-                    debug.drawLine(particle1.position, particle2.position, [0.2,0.5,0.7,1]);
+                    if (convex.isStatic) {
+                        debug.drawLine(particle1.position, particle2.position, [0.8, 0.8, 0.7, 1]);
+                    } else {
+                        debug.drawLine(particle1.position, particle2.position, [0.2, 0.5, 0.7, 1]);
+                    }
                 }
             }
 

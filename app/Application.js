@@ -11,4 +11,4 @@ Backbone.application.router = new Router();
 
 // Enable history
 Backbone.history.start();
-Backbone.history.stop();
+//Backbone.history.stop();

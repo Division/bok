@@ -110,16 +110,15 @@ module.exports = BaseEntity.extend({
     },
 
     fire: function(direction) {
-        if (this.state == this.STATE_HIDDEN) {
+        //if (this.state == this.STATE_HIDDEN) {
+            this.hide();
             this.setEnabledState(true);
             this.setupConstraintsForAttachedState(false);
             this.accelerateParticles(direction);
             this.state = this.STATE_FIRED;
-        } else {
-            this.setupMasses(true);
-            this.setEnabledState(false);
-            this.state = this.STATE_HIDDEN;
-        }
+        //} else {
+        //    this.hide();
+        //}
     },
 
     accelerateParticles: function(direction) {
@@ -155,7 +154,11 @@ module.exports = BaseEntity.extend({
     },
 
     hide: function() {
-
+        if (this.state != this.STATE_HIDDEN) {
+            this.setupMasses(true);
+            this.setEnabledState(false);
+            this.state = this.STATE_HIDDEN;
+        }
     },
 
     render: function() {
