@@ -4,7 +4,8 @@ var GameView = require('./views/GameView');
 module.exports = Backbone.Router.extend({
 
     routes: {
-        '': 'loadTestLevel'
+        '': 'loadTestLevel',
+        'levels/:id': 'loadLevel'
     },
 
     /**
@@ -14,6 +15,13 @@ module.exports = Backbone.Router.extend({
         new GameView({
             el: 'canvas'
             //level: require('game/SatanBokLevel')
+        });
+    },
+
+    loadLevel: function(id) {
+        new GameView({
+            el: 'canvas',
+            level: id
         });
     }
 

@@ -141,6 +141,25 @@ module.exports = Class.extend({
         return this.particles.length;
     },
 
+    applyForce: function(force) {
+        for (var i = 0; i < this.particles.length; i++) {
+            this.particles[i].applyForce(force);
+        }
+    },
+
+    containsPoint: function(point) {
+        for (var i = 0; i < this.particles.length; i++) {
+            var particle1 = this.particles[i];
+            var particle2 = this.particles[(i + 1) % this.particles.length];
+
+            if (Point.ord(point, particle1.position, particle2.position) > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    },
+
     /**
      * Returns array of two particles for the edge
      */

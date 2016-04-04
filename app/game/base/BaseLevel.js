@@ -3,9 +3,10 @@
  */
 var Class = require("Class");
 var SatanBok = require("game/entities/SatanBok");
-var base64 = require('base64-js');
 var Point = require("core/verlet-physics/Point");
 var LevelGeometry = require("game/entities/LevelGeometry");
+var Killer = require("game/entities/Killer");
+var Target = require("game/entities/Target");
 var base64Binary = require("base64-binary");
 
 /**
@@ -21,18 +22,17 @@ module.exports = Class.extend({
         this.engine = engine;
     },
 
-    load: function(name) {
-        this.loadFromFile("level9");
+    load: function(id) {
+        this.loadFromFile("level" + id);
     },
 
     loadFromFile: function(levelName) {
         var levelData = require("raw!game/levels/" + levelName + ".b64");
-        console.log(levelData);
+        //console.log(levelData);
         var position = 0;
 
         var uint = base64Binary.decode(levelData);
         var bytes = new Int32Array(uint.buffer);
-        //var bytes = new Int32Array(base64.toByteArray(levelData).buffer);
         var scale = bytes[position++],
             polyCount = bytes[position++],
             targetCount = bytes[position++],
@@ -69,15 +69,60 @@ module.exports = Class.extend({
         }
 
         console.log("scale:" + scale);
+        console.log("start: ", start);
+        console.log("finish: ", finish);
         console.log("poly count:" + polyCount);
-        console.log("Polygons:" + polygonList);
         console.log("target count:" + targetCount);
-        console.log("Targets:" + targets);
         console.log("enemy count:" + killerCount);
-        console.log("Killers:" + killers);
 
+        // Player
         var player = new SatanBok(start);
         this.game.addEntity(player);
+
+        // Killers
+        for (i = 0; i < killers.length; i++) {
+            var killer = new Killer(killers[i], player);
+            this.game.addEntity(killer);
+        }
+
+        // Targets
+        for (i = 0; i < targets.length; i++) {
+            var target = new Target(targets[i], player);
+            this.game.addEntity(target);
+        }
+
+        // Outer walls
+        var wall = new LevelGeometry([
+            new Point(-600, 450 * scale / 10),
+            new Point(-600, 450 * scale / 10 + 600),
+            new Point(450 * scale / 10 + 600, 450 * scale / 10 + 600),
+            new Point(450 * scale / 10 + 600, 450 * scale / 10)
+        ].reverse());
+        this.game.addEntity(wall);
+
+        wall = new LevelGeometry([
+            new Point(-600, -600),
+            new Point(-600, 450 * scale / 10 + 600),
+            new Point(0, 450 * scale / 10 + 600),
+            new Point(0, -600)
+        ].reverse());
+        this.game.addEntity(wall);
+
+        wall = new LevelGeometry([
+            new Point(-600, 0),
+            new Point(450 * scale / 10 + 600, 0),
+            new Point(450 * scale / 10 + 600, -600),
+            new Point(-600, -600)
+        ].reverse());
+        this.game.addEntity(wall);
+
+        wall = new LevelGeometry([
+            new Point(450 * scale / 10, 0),
+            new Point(450 * scale / 10, 450 * scale / 10 + 600),
+            new Point(450 * scale / 10 + 600, 450 * scale / 10 + 600),
+            new Point(450 * scale / 10 + 600, -600)
+        ].reverse());
+        this.game.addEntity(wall);
     }
 
 });

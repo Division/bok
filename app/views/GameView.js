@@ -20,8 +20,13 @@ module.exports = Backbone.View.extend({
      * @param {Object} attrs { level: 'Level' }
      */
     initialize: function (attrs) {
-
         this.game = new Game(attrs);
+        this.game.on("switchLevel", this.switchLevel);
+    },
+
+    switchLevel: function(id) {
+        Backbone.history.navigate("levels/" + id);
+        window.location.reload();
     }
 
 });

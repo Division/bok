@@ -2,6 +2,9 @@ var Class = require("Class");
 var twgl = require("twgl");
 var Material = require("./Material");
 
+/**
+ * @class PhysicsDebugDraw
+ */
 module.exports = Class.extend({
 
     gl: null,
